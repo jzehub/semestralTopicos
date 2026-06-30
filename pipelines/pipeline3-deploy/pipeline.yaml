@@ -36,10 +36,11 @@ stages:
                 set -euo pipefail
 
                 echo "Installing Terraform $(terraformVersion)"
-                curl -sLo terraform.zip "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip"
-                unzip -o terraform.zip
-                sudo mv terraform /usr/local/bin/
-                rm -f terraform.zip
+                TF_INSTALL_DIR=$(mktemp -d)
+                curl -sLo "$TF_INSTALL_DIR/terraform.zip" "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip"
+                unzip -o "$TF_INSTALL_DIR/terraform.zip" -d "$TF_INSTALL_DIR"
+                sudo mv "$TF_INSTALL_DIR/terraform" /usr/local/bin/terraform
+                rm -rf "$TF_INSTALL_DIR"
                 terraform -version
 
                 cd "$(terraformWorkingDirectory)"
