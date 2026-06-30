@@ -6,6 +6,7 @@ trigger:
   paths:
     include:
       - backend/*
+      - frontend/*
       - pipelines/pipeline2-build/**
 
 pool:
@@ -15,16 +16,15 @@ variables:
   azureServiceConnection: "azureDevOpsConnection"
   acrName: "acrtaskmanagerdev04s2uz"
   acrLoginServer: "acrtaskmanagerdev04s2uz.azurecr.io"
-  imageRepository: "taskmanager-backend"
-  dockerfilePath: "$(Build.SourcesDirectory)/backend/Dockerfile"
-  buildContext: "$(Build.SourcesDirectory)/backend"
+  backendImageRepository: "taskmanager-backend"
+  frontendImageRepository: "taskmanager-frontend"
 
 stages:
   - stage: BuildAndPush
-    displayName: Build and push backend image
+    displayName: Build and push backend and frontend images
     jobs:
-      - job: BuildBackendImage
-        displayName: Build and push backend image
+      - job: BuildAndPushImages
+        displayName: Build and push backend and frontend images
         steps:
           - checkout: self
 
@@ -35,25 +35,44 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                set -e
+                set -euo pipefail
 
                 echo "Logging in to ACR"
                 az acr login --name "$(acrName)"
 
-                SHORT_SHA=$(echo "$(Build.SourceVersion)" | cut -c1-7)
+                SHORT_SHA="$(Build.SourceVersion)"
+                SHORT_SHA="${SHORT_SHA:0:7}"
 
-                IMAGE_SHA="$(acrLoginServer)/$(imageRepository):$SHORT_SHA"
-                IMAGE_LATEST="$(acrLoginServer)/$(imageRepository):latest"
+                BACKEND_IMAGE="$(acrLoginServer)/$(backendImageRepository):$SHORT_SHA"
+                BACKEND_LATEST="$(acrLoginServer)/$(backendImageRepository):latest"
 
-                echo "Building Docker image"
-                docker build -f "$(dockerfilePath)" -t "$IMAGE_SHA" -t "$IMAGE_LATEST" "$(buildContext)"
+                FRONTEND_IMAGE="$(acrLoginServer)/$(frontendImageRepository):$SHORT_SHA"
+                FRONTEND_LATEST="$(acrLoginServer)/$(frontendImageRepository):latest"
 
-                echo "Pushing Docker image"
-                docker push "$IMAGE_SHA"
-                docker push "$IMAGE_LATEST"
+                echo "Building backend image"
+                docker build \
+                  -f "$(Build.SourcesDirectory)/backend/Dockerfile" \
+                  -t "$BACKEND_IMAGE" \
+                  -t "$BACKEND_LATEST" \
+                  "$(Build.SourcesDirectory)/backend"
 
-                echo "Image pushed successfully"
-                echo "$IMAGE_SHA"
-                echo "$IMAGE_LATEST"
+                echo "Building frontend image"
+                docker build \
+                  -f "$(Build.SourcesDirectory)/frontend/Dockerfile" \
+                  -t "$FRONTEND_IMAGE" \
+                  -t "$FRONTEND_LATEST" \
+                  "$(Build.SourcesDirectory)/frontend"
+
+                echo "Pushing backend image"
+                docker push "$BACKEND_IMAGE"
+                docker push "$BACKEND_LATEST"
+
+                echo "Pushing frontend image"
+                docker push "$FRONTEND_IMAGE"
+                docker push "$FRONTEND_LATEST"
+
+                echo "Images pushed successfully"
+                echo "$BACKEND_IMAGE"
+                echo "$FRONTEND_IMAGE"
 
                 echo "##vso[task.setvariable variable=imageTag;isOutput=true]$SHORT_SHA"
