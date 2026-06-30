@@ -16,6 +16,7 @@ variables:
   backendImageTag: "latest"
   frontendImageTag: "latest"
   terraformVersion: "1.9.0"
+  postgresPassword: $(postgres_password)
 
 stages:
   - stage: Deploy
@@ -56,5 +57,5 @@ stages:
                 terraform plan \
                   -var="backend_container_image=$BACKEND_IMAGE" \
                   -var="frontend_container_image=$FRONTEND_IMAGE" \
-                  -out=tfplan
+                  -var="postgres_password=$(postgresPassword)" \
                 terraform apply -auto-approve tfplan
