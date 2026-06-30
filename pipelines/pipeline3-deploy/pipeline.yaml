@@ -1,0 +1,43 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - pipelines/pipeline3-deploy/**
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: "azureDevOpsConnection"
+  terraformWorkingDirectory: "$(System.DefaultWorkingDirectory)/terraform/pipeline1-infrastructure"
+  acrLoginServer: "acrtaskmanagerdev04s2uz.azurecr.io"
+  backendImageTag: "latest"
+  frontendImageTag: "latest"
+
+stages:
+  - stage: Deploy
+    displayName: Deploy backend and frontend containers
+    jobs:
+      - job: TerraformDeploy
+        displayName: Terraform apply container image updates
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: Run Terraform to update ACI images
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                cd "$(terraformWorkingDirectory)"
+                terraform init
+                terraform validate
+                terraform plan \
+                  -var="backend_container_image=$(acrLoginServer)/taskmanager-backend:$(backendImageTag)" \
+                  -var="frontend_container_image=$(acrLoginServer)/taskmanager-frontend:$(frontendImageTag)" \
+                  -out=tfplan
+                terraform apply -auto-approve tfplan
