@@ -1,0 +1,79 @@
+trigger:
+  branches:
+    include:
+      - main
+
+  paths:
+    include:
+      - backend/*
+      - pipelines/pipeline2-build/**
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: ""
+  acrName: ""
+  acrLoginServer: ""
+  imageRepository: "taskmanager-backend"
+  dockerfilePath: "$(Build.SourcesDirectory)/backend/Dockerfile"
+  buildContext: "$(Build.SourcesDirectory)/backend"
+
+stages:
+  - stage: BuildAndPush
+    displayName: Construyendo y subiendo la imagen del backend a ACR
+    jobs:
+      - job: BuildBackendImage
+        displayName: Construyendo y subiendo la imagen del backend a ACR
+        steps:
+          - checkout: self
+
+          - task : AzureCLI@2
+            
+            displayName: Iniciando sesion en Azure Container Registry
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+
+                set -e
+
+                echo "Iniciando sesion en Azure Container Registry"
+                az acr login --name $(acrName)
+
+                SHORT_SHA=$(echo "$(Build.SourceVersion) | cut -c1-7")
+
+                IMAGE_SHA="$ACR_LOGIN_SERVER/$IMAGE_REPOSITORY:$SHORT_SHA"
+                IMAGE_LATEST="$ACR_LOGIN_SERVER/$IMAGE_REPOSITORY:latest"
+
+                echo "Construyendo la imagend de docker"
+
+                docker build \
+                  -f "$DOCKERFILE_PATH" \
+                  -t "$IMAGE_SHA" \
+                  -t "$IMAGE_LATEST" \
+                  "$BUILD_CONTEXT"
+
+                echo "Subiendo la imagen a ACR"
+                docker push "$IMAGE_SHA"
+
+                echo "Subiendo la imagen a ACR con la etiqueta latest"
+                docker push "$IMAGE_LATEST"
+
+                echo "Imagen subida"
+                echo "$IMAGE_SHA"
+                echo "$IMAGE_LATEST"
+
+                echo "##vso[task.setvariable variable=imageTag;isOutput=true]$SHORT_SHA"
+
+              env:
+                ACR_NAME: $(acrName)
+                ACR_LOGIN_SERVER: $(acrLoginServer)
+                IMAGE_REPOSITORY: $(imageRepository)
+                DOCKERFILE_PATH: $(dockerfilePath)
+                BUILD_CONTEXT: $(buildContext)
+                BUILD_SOURCEVERSION: $(Build.SourceVersion)
+
+        
+   
