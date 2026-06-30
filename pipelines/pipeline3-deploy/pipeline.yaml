@@ -58,4 +58,5 @@ stages:
                   -var="backend_container_image=$BACKEND_IMAGE" \
                   -var="frontend_container_image=$FRONTEND_IMAGE" \
                   -var="postgres_password=$(postgresPassword)" \
+                  -out=tfplan
                 terraform apply -auto-approve tfplan
