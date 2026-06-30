@@ -12,68 +12,48 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  azureServiceConnection: ""
-  acrName: ""
-  acrLoginServer: ""
+  azureServiceConnection: "azureDevOpsConnection"
+  acrName: "acrtaskmanagerdev04s2uz"
+  acrLoginServer: "acrtaskmanagerdev04s2uz.azurecr.io"
   imageRepository: "taskmanager-backend"
   dockerfilePath: "$(Build.SourcesDirectory)/backend/Dockerfile"
   buildContext: "$(Build.SourcesDirectory)/backend"
 
 stages:
   - stage: BuildAndPush
-    displayName: Construyendo y subiendo la imagen del backend a ACR
+    displayName: Build and push backend image
     jobs:
       - job: BuildBackendImage
-        displayName: Construyendo y subiendo la imagen del backend a ACR
+        displayName: Build and push backend image
         steps:
           - checkout: self
 
-          - task : AzureCLI@2
-            
-            displayName: Iniciando sesion en Azure Container Registry
+          - task: AzureCLI@2
+            displayName: Login to Azure Container Registry
             inputs:
               azureSubscription: $(azureServiceConnection)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-
                 set -e
 
-                echo "Iniciando sesion en Azure Container Registry"
-                az acr login --name $(acrName)
+                echo "Logging in to ACR"
+                az acr login --name "$(acrName)"
 
-                SHORT_SHA=$(echo "$(Build.SourceVersion) | cut -c1-7")
+                SHORT_SHA=$(echo "$(Build.SourceVersion)" | cut -c1-7)
 
-                IMAGE_SHA="$ACR_LOGIN_SERVER/$IMAGE_REPOSITORY:$SHORT_SHA"
-                IMAGE_LATEST="$ACR_LOGIN_SERVER/$IMAGE_REPOSITORY:latest"
+                IMAGE_SHA="$(acrLoginServer)/$(imageRepository):$SHORT_SHA"
+                IMAGE_LATEST="$(acrLoginServer)/$(imageRepository):latest"
 
-                echo "Construyendo la imagend de docker"
+                echo "Building Docker image"
+                docker build -f "$(dockerfilePath)" -t "$IMAGE_SHA" -t "$IMAGE_LATEST" "$(buildContext)"
 
-                docker build \
-                  -f "$DOCKERFILE_PATH" \
-                  -t "$IMAGE_SHA" \
-                  -t "$IMAGE_LATEST" \
-                  "$BUILD_CONTEXT"
-
-                echo "Subiendo la imagen a ACR"
+                echo "Pushing Docker image"
                 docker push "$IMAGE_SHA"
-
-                echo "Subiendo la imagen a ACR con la etiqueta latest"
                 docker push "$IMAGE_LATEST"
 
-                echo "Imagen subida"
+                echo "Image pushed successfully"
                 echo "$IMAGE_SHA"
                 echo "$IMAGE_LATEST"
 
                 echo "##vso[task.setvariable variable=imageTag;isOutput=true]$SHORT_SHA"
-
-              env:
-                ACR_NAME: $(acrName)
-                ACR_LOGIN_SERVER: $(acrLoginServer)
-                IMAGE_REPOSITORY: $(imageRepository)
-                DOCKERFILE_PATH: $(dockerfilePath)
-                BUILD_CONTEXT: $(buildContext)
-                BUILD_SOURCEVERSION: $(Build.SourceVersion)
-
-        
-   
