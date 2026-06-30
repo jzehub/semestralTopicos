@@ -15,29 +15,45 @@ variables:
   acrLoginServer: "acrtaskmanagerdev04s2uz.azurecr.io"
   backendImageTag: "latest"
   frontendImageTag: "latest"
+  terraformVersion: "1.9.0"
 
 stages:
   - stage: Deploy
-    displayName: Deploy backend and frontend containers
+    displayName: "Deploy backend and frontend containers"
     jobs:
       - job: TerraformDeploy
-        displayName: Terraform apply container image updates
+        displayName: "Terraform apply container image updates"
         steps:
           - checkout: self
 
           - task: AzureCLI@2
-            displayName: Run Terraform to update ACI images
+            displayName: "Run Terraform to update ACI images"
             inputs:
-              azureSubscription: $(azureServiceConnection)
-              scriptType: bash
-              scriptLocation: inlineScript
+              azureSubscription: "$(azureServiceConnection)"
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
               inlineScript: |
                 set -euo pipefail
+
+                echo "Installing Terraform $(terraformVersion)"
+                curl -sLo terraform.zip "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip"
+                unzip -o terraform.zip
+                sudo mv terraform /usr/local/bin/
+                rm -f terraform.zip
+                terraform -version
+
                 cd "$(terraformWorkingDirectory)"
+
+                BACKEND_IMAGE="$(acrLoginServer)/taskmanager-backend:$(backendImageTag)"
+                FRONTEND_IMAGE="$(acrLoginServer)/taskmanager-frontend:$(frontendImageTag)"
+
+                echo "Backend image: $BACKEND_IMAGE"
+                echo "Frontend image: $FRONTEND_IMAGE"
+
                 terraform init
                 terraform validate
                 terraform plan \
-                  -var="backend_container_image=$(acrLoginServer)/taskmanager-backend:$(backendImageTag)" \
-                  -var="frontend_container_image=$(acrLoginServer)/taskmanager-frontend:$(frontendImageTag)" \
+                  -var="backend_container_image=$BACKEND_IMAGE" \
+                  -var="frontend_container_image=$FRONTEND_IMAGE" \
                   -out=tfplan
                 terraform apply -auto-approve tfplan
